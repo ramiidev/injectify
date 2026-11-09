@@ -1,0 +1,16 @@
+# Auto Configurations
+com.ramiidev.injectify.boot.autoconfigure.EnableAutoConfiguration=\
+com.ramiidev.injectify.boot.autoconfigure.core.ScanProperties,
+
+# Bootstrap Listeners
+com.ramiidev.injectify.boot.event.BootstrapEventListener=\
+com.ramiidev.injectify.boot.listener.LoggingBootstrapListener,
+
+# Failure Reporters
+com.ramiidev.injectify.core.diagnostic.FailureAnalysisReporter=\
+com.ramiidev.injectify.core.diagnostic.LoggingFailureReporter,\
+com.ramiidev.injectify.core.diagnostic.DialogFailureReporter,
+
+# Failure Analyzers
+com.ramiidev.injectify.core.diagnostic.FailureAnalyzer=\
+com.ramiidev.injectify.core.diagnostic.PostgresDependencyFailureAnalyzer,

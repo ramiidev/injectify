@@ -1,0 +1,14 @@
+package com.ramiidev.injectify.shared.annotation;
+
+import com.ramiidev.injectify.core.beans.definition.BeanScope;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target({ElementType.TYPE, ElementType.METHOD, ElementType.ANNOTATION_TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Scope {
+    BeanScope value() default BeanScope.SINGLETON;
+}
