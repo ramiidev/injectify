@@ -155,7 +155,11 @@ public class DefaultSingletonBeanRegistry implements SingletonBeanRegistry {
                     } catch (BeanCreationException ex) {
                         throw ex;
                     } catch (Exception ex) {
-                        throw new BeanCreationException(beanName, "Fallo instanciando singleton.", ex);
+                        throw new BeanCreationException(
+                                beanName,
+                                "Fallo instanciando singleton. Causa: " + ex.getMessage(),
+                                ex
+                        );
                     } finally {
                         // 5. Limpiar la marca de "En Creación" independientemente del resultado
                         afterSingletonCreation(beanName);
