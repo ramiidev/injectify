@@ -13,6 +13,9 @@ import com.ramiidev.injectify.fixtures.configuration.Processor;
 import com.ramiidev.injectify.fixtures.configuration.SecondaryProcessor;
 import com.ramiidev.injectify.fixtures.lifecycle.DisposableComponent;
 import com.ramiidev.injectify.fixtures.missing.MissingDependencyConsumer;
+import com.ramiidev.injectify.fixtures.missing.MissingQualifierConsumer;
+import com.ramiidev.injectify.fixtures.errors.FailingFactoryConfiguration;
+import com.ramiidev.injectify.fixtures.errors.FailingLifecycleComponent;
 import com.ramiidev.injectify.fixtures.qualifier.QualifiedConsumer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -84,10 +87,12 @@ class BeanContractTest {
         ApplicationContext context = TestContextFactory.create(BeanConfiguration.class);
 
         try {
-            assertThrows(
+            NoUniqueBeanDefinitionException exception = assertThrows(
                     NoUniqueBeanDefinitionException.class,
                     () -> context.getBean(Processor.class)
             );
+            assertEquals(true, exception.getMessage().contains("2"));
+            assertEquals(true, exception.getMessage().contains("Processor"));
         } finally {
             context.destroy();
         }
@@ -104,7 +109,68 @@ class BeanContractTest {
                     () -> context.getBean(MissingDependencyConsumer.class)
             );
 
-            assertInstanceOf(UnsatisfiedDependencyException.class, exception.getCause());
+            UnsatisfiedDependencyException cause =
+                    assertInstanceOf(UnsatisfiedDependencyException.class, exception.getCause());
+            assertEquals(true, cause.getMessage().contains("missingDependencyConsumer"));
+            assertEquals(true, cause.getMessage().contains("MissingDependency"));
+            assertEquals(true, cause.getMessage().contains("constructor"));
+        } finally {
+            context.destroy();
+        }
+    }
+
+    @Test
+    @DisplayName("Explains a missing qualifier in the dependency error")
+    void explainsMissingQualifier() {
+        ApplicationContext context = TestContextFactory.create(MissingQualifierConsumer.class);
+
+        try {
+            BeanCreationException exception = assertThrows(
+                    BeanCreationException.class,
+                    () -> context.getBean(MissingQualifierConsumer.class)
+            );
+
+            UnsatisfiedDependencyException cause =
+                    assertInstanceOf(UnsatisfiedDependencyException.class, exception.getCause());
+            assertEquals(true, cause.getMessage().contains("doesNotExist"));
+            assertEquals(true, cause.getMessage().contains("MissingQualifierConsumer"));
+        } finally {
+            context.destroy();
+        }
+    }
+
+    @Test
+    @DisplayName("Preserves the original factory method failure")
+    void preservesFactoryMethodFailure() {
+        ApplicationContext context = TestContextFactory.create(FailingFactoryConfiguration.class);
+
+        try {
+            BeanCreationException exception = assertThrows(
+                    BeanCreationException.class,
+                    () -> context.getBean("failingProduct")
+            );
+            assertEquals(true, exception.getMessage().contains("failingProduct"));
+            assertEquals(true, exception.getMessage().contains("factory exploded"));
+            assertEquals(true, exception.getCause().getCause().getMessage().contains("factory exploded"));
+        } finally {
+            context.destroy();
+        }
+    }
+
+    @Test
+    @DisplayName("Preserves the original lifecycle failure")
+    void preservesLifecycleFailure() {
+        ApplicationContext context = TestContextFactory.create(FailingLifecycleComponent.class);
+
+        try {
+            BeanCreationException exception = assertThrows(
+                    BeanCreationException.class,
+                    () -> context.getBean(FailingLifecycleComponent.class)
+            );
+
+            assertEquals(true, exception.getMessage().contains("failingLifecycleComponent"));
+            assertEquals(true, exception.getMessage().contains("lifecycle exploded"));
+            assertEquals(true, exception.getCause().getCause().getMessage().contains("lifecycle exploded"));
         } finally {
             context.destroy();
         }

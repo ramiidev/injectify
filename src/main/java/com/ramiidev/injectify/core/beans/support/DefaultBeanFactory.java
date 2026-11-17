@@ -73,11 +73,13 @@ public class DefaultBeanFactory extends DefaultSingletonBeanRegistry
     private final Queue<String> beanDefinitionNames = new ConcurrentLinkedQueue<>();
     private final ConfigurationPropertyBinder binder;
     private final ConversionService conversionService;
+    private final DependencyResolver dependencyResolver;
 
     public DefaultBeanFactory(ConfigurationPropertyBinder binder,
                               ConversionService conversionService) {
         this.binder = binder;
         this.conversionService = conversionService;
+        this.dependencyResolver = new DependencyResolver(this);
     }
 
     // =================================================================================================================
@@ -302,10 +304,10 @@ public class DefaultBeanFactory extends DefaultSingletonBeanRegistry
         }
 
         // 3. Inyección de dependencias (Llenamos los campos del objeto crudo)
-        populateBean(beanInstance);
+        populateBean(beanName, beanInstance);
 
         // 4. Inicialización (@PostConstruct)
-        Object initializedBean = initializeBean(beanInstance);
+        Object initializedBean = initializeBean(beanName, beanInstance);
 
         // --- INTEGRACIÓN CON BYTEBUDDY ---
 
@@ -368,7 +370,7 @@ public class DefaultBeanFactory extends DefaultSingletonBeanRegistry
             if (beanDefinition.isFromFactoryMethod()) {
                 Object factoryBean = getBean(beanDefinition.getFactoryBeanName());
                 Method factoryMethod = findFactoryMethod(factoryBean, beanDefinition.getFactoryMethodName());
-                Object[] dependencies = resolveParameters(factoryMethod.getParameters());
+                Object[] dependencies = dependencyResolver.resolveParameters(beanDefinition.getBeanName(), factoryMethod);
                 return factoryMethod.invoke(factoryBean, dependencies);
             }
 
@@ -377,59 +379,54 @@ public class DefaultBeanFactory extends DefaultSingletonBeanRegistry
                 Environment environment = getBean(Environment.class);
                 return binder.bind(beanClass, environment);
             } else {
-                Constructor<?> constructor = findConstructorToUse(beanClass);
-                Object[] dependencies = resolveParameters(constructor.getParameters());
+                Constructor<?> constructor = dependencyResolver.findConstructorToUse(beanClass, beanDefinition.getBeanName());
+                Object[] dependencies = dependencyResolver.resolveParameters(beanDefinition.getBeanName(), constructor);
                 return constructor.newInstance(dependencies);
             }
-        } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
-            throw new BeanInstantiationException(beanDefinition.getBeanClass(), "Error de reflexión durante la instancia.", e);
+        } catch (InvocationTargetException exception) {
+            Throwable cause = exception.getCause() != null ? exception.getCause() : exception;
+            String operation = beanDefinition.isFromFactoryMethod()
+                    ? "el método @Bean '" + beanDefinition.getFactoryMethodName() + "'"
+                    : "el constructor de '" + beanDefinition.getBeanClass().getName() + "'";
+            throw new BeanInstantiationException(
+                    beanDefinition.getBeanClass(),
+                    "El bean '" + beanDefinition.getBeanName() + "' falló al ejecutar "
+                            + operation + ". Causa original: " + cause.getMessage(),
+                    cause
+            );
+        } catch (InstantiationException | IllegalAccessException exception) {
+            throw new BeanInstantiationException(
+                    beanDefinition.getBeanClass(),
+                    "El bean '" + beanDefinition.getBeanName()
+                            + "' no pudo acceder o instanciar su constructor/método factory.",
+                    exception
+            );
         }
     }
 
-    protected void populateBean(Object beanInstance) throws BeanInitializationException {
-        try {
-            performSetterInjection(beanInstance);
-            performFieldInjection(beanInstance);
-        } catch (Exception e) {
-            String msg = "Error intentando inyectar dependencias en bean de tipo " + beanInstance.getClass().getName();
-            throw new BeanInitializationException(msg, e);
-        }
+    protected void populateBean(String beanName, Object beanInstance) throws BeanInitializationException {
+        dependencyResolver.populateBean(beanName, beanInstance);
 
     }
 
-    protected Object initializeBean(Object beanInstance) throws BeanInitializationException {
+    protected Object initializeBean(String beanName, Object beanInstance) throws BeanInitializationException {
         try {
             invokePostConstruct(beanInstance);
         } catch (Exception e) {
-            String msg = "Error intentando ejecutar método @PostConstruct en bean de tipo " + beanInstance.getClass().getName();
-            throw new BeanInitializationException(msg, e);
+            Throwable cause = e instanceof InvocationTargetException invocationTargetException
+                    && invocationTargetException.getCause() != null
+                    ? invocationTargetException.getCause()
+                    : e;
+            String msg = "Error ejecutando @PostConstruct del bean '" + beanName
+                    + "' de tipo '" + beanInstance.getClass().getName()
+                    + "'. Causa original: " + cause.getMessage();
+            throw new BeanInitializationException(msg, cause);
         }
         return beanInstance;
     }
 
-    // =============================================================================================
-    // RESOLUCIÓN DE DEPENDENCIAS E INYECCIÓN
-    // =============================================================================================
-    private Object[] resolveParameters(Parameter[] parameters) {
-        if (parameters.length == 0) return new Object[0];
-        Object[] dependencies = new Object[parameters.length];
-        for (int i = 0; i < parameters.length; i++) {
-            Parameter param = parameters[i];
-
-            // [MODIFICADO] Usamos getParameterizedType() para no perder <T>
-            Type dependencyType = param.getParameterizedType();
-
-            Object dependency = resolveDependency(dependencyType, param.getAnnotations());
-            if (dependency == null) {
-                throw new UnsatisfiedDependencyException("Desconocido (Parámetro constructor)", getRawType(dependencyType));
-            }
-            dependencies[i] = dependency;
-        }
-        return dependencies;
-    }
-
-    // [MODIFICADO] Recibe Type, no Class<?>
-    private Object resolveDependency(Type type, Annotation[] annotations) {
+    // Dependency lookup remains here because candidate matching depends on registry state.
+    Object resolveDependencyByType(Type type, Annotation[] annotations) {
         // Necesitamos la clase cruda para conversiones simples y checks de @Value
         Class<?> rawType = getRawType(type);
 
@@ -466,6 +463,12 @@ public class DefaultBeanFactory extends DefaultSingletonBeanRegistry
         }
 
         return null;
+    }
+
+    Object resolveValue(String expression, Class<?> targetType) {
+        Environment environment = getBean(Environment.class);
+        String resolved = environment.resolvePlaceholders(expression);
+        return conversionService.convert(resolved, targetType);
     }
 
     /**
@@ -811,8 +814,12 @@ public class DefaultBeanFactory extends DefaultSingletonBeanRegistry
             // findFactoryMethod ya lo tienes implementado (maneja proxies)
             return findFactoryMethod(factoryBean, bd.getFactoryMethodName());
         } catch (Exception e) {
-            log.warn("No se pudo inspeccionar el método factory para el bean: " + bd.getBeanName());
-            return null;
+            throw new BeanInstantiationException(
+                    bd.getBeanClass(),
+                    "No se pudo inspeccionar el método @Bean '" + bd.getFactoryMethodName()
+                            + "' para resolver qualifiers del bean '" + bd.getBeanName() + "'.",
+                    e
+            );
         }
     }
 
@@ -826,76 +833,6 @@ public class DefaultBeanFactory extends DefaultSingletonBeanRegistry
             return (Class<?>) pt.getRawType();
         }
         throw new IllegalArgumentException("Tipo no soportado: " + type);
-    }
-
-    private void performSetterInjection(Object instance) throws IllegalAccessException, InvocationTargetException {
-        for (Method method : instance.getClass().getDeclaredMethods()) {
-            if (method.isAnnotationPresent(Autowired.class) && method.getParameterCount() == 1) {
-
-                // 1. Obtenemos la anotación para ver si es requerido
-                Autowired autowired = method.getAnnotation(Autowired.class);
-                boolean isRequired = autowired.required();
-
-                Parameter parameter = method.getParameters()[0];
-
-                try {
-                    // 2. Intentamos resolver la dependencia
-                    Object dependency = resolveDependency(parameter.getType(), parameter.getAnnotations());
-
-                    // 3. Si la encontramos, inyectamos
-                    if (dependency != null) {
-                        method.invoke(instance, dependency);
-                    } else if (isRequired) {
-                        // 4. Si no se encontró (por tipo) y es requerido -> Error
-                        throw new UnsatisfiedDependencyException(
-                                "Dependencia requerida no encontrada para el setter: " + method.getName(),
-                                parameter.getType());
-                    }
-
-                } catch (NoSuchBeanDefinitionException e) {
-                    // 5. CAPTURAMOS LA EXCEPCIÓN DEL QUALIFIER
-                    // Si resolveDependency falló buscando un @Qualifier específico:
-                    if (isRequired) {
-                        throw e; // Si es obligatorio, dejamos que explote.
-                    }
-                    // Si es opcional (required=false), simplemente ignoramos el error y no inyectamos nada.
-                    log.debug("Dependencia opcional no encontrada: {}", e.getMessage());
-                }
-            }
-        }
-    }
-
-    @SuppressWarnings("java:S3011")
-    private void performFieldInjection(Object instance) throws IllegalAccessException {
-        for (Field field : instance.getClass().getDeclaredFields()) {
-            if (field.isAnnotationPresent(Value.class)) {
-                // Lógica de Value se mantiene igual
-                Value valueAnn = field.getAnnotation(Value.class);
-                Environment env = getBean(Environment.class);
-                String resolvedValue = env.resolvePlaceholders(valueAnn.value());
-                Object convertedValue = conversionService.convert(resolvedValue, field.getType());
-
-                field.setAccessible(true);
-                field.set(instance, convertedValue);
-            } else if (field.isAnnotationPresent(Autowired.class)) {
-                // [NUEVO] Soporte de Autowired en campos con genéricos
-                field.setAccessible(true);
-                Autowired autowired = field.getAnnotation(Autowired.class);
-
-                try {
-                    // [MODIFICADO] Usamos getGenericType
-                    Object dependency = resolveDependency(field.getGenericType(), field.getAnnotations());
-
-                    if (dependency != null) {
-                        field.set(instance, dependency);
-                    } else if (autowired.required()) {
-                        throw new UnsatisfiedDependencyException("Campo requerido no encontrado: " + field.getName(), field.getType());
-                    }
-                } catch (NoSuchBeanDefinitionException e) {
-                    if (autowired.required()) throw e;
-                }
-            }
-        }
     }
 
     @SuppressWarnings("java:S3011")
@@ -923,39 +860,6 @@ public class DefaultBeanFactory extends DefaultSingletonBeanRegistry
                 }
             }
             currentClass = currentClass.getSuperclass();
-        }
-    }
-
-    /**
-     * Busca el constructor a utilizar para la inyección de dependencias.
-     * Prioriza un único constructor anotado con @Inject. Si no existe,
-     * busca el constructor por defecto. Lanza una excepción si hay ambigüedad
-     * (múltiples constructores @Inject).
-     */
-    private Constructor<?> findConstructorToUse(Class<?> componentClass) {
-        List<Constructor<?>> injectableConstructors = new ArrayList<>();
-        for (Constructor<?> constructor : componentClass.getDeclaredConstructors()) {
-            if (constructor.isAnnotationPresent(Autowired.class)) {
-                injectableConstructors.add(constructor);
-            }
-        }
-
-        int totalInjectableConstructors = injectableConstructors.size();
-        if (totalInjectableConstructors > 1) {
-            // Error: Ambigüedad, se encontraron múltiples constructores con @Inject
-            throw new BeanInstantiationException(componentClass,
-                    "Ambigüedad: Se encontraron " + injectableConstructors.size()
-                            + " constructores anotados con @Autowired. Solo uno es permitido.");
-        } else if (totalInjectableConstructors == 1) {
-            // Caso ideal: Se encontró un único constructor @Inject
-            return injectableConstructors.getFirst();
-        } else {
-            // Caso por defecto: No hay @Inject, busca el constructor sin argumentos
-            try {
-                return componentClass.getDeclaredConstructor();
-            } catch (NoSuchMethodException _) {
-                throw new BeanInstantiationException(componentClass, "No se encontró un constructor apropiado: No hay constructor por defecto ni uno anotado con @Autowired.");
-            }
         }
     }
 
