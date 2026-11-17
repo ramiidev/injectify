@@ -2,10 +2,10 @@ package com.ramiidev.injectify.core;
 
 import com.ramiidev.injectify.core.context.ApplicationContext;
 import com.ramiidev.injectify.core.support.TestContextFactory;
-import com.ramiidev.injectify.fixtures.scope.PrototypeService;
-import com.ramiidev.injectify.fixtures.scope.PrototypeServiceImpl;
-import com.ramiidev.injectify.fixtures.scope.SingletonService;
-import com.ramiidev.injectify.fixtures.scope.SingletonServiceImpl;
+import com.ramiidev.injectify.fixtures.scope.Prototype;
+import com.ramiidev.injectify.fixtures.scope.PrototypeImpl;
+import com.ramiidev.injectify.fixtures.scope.Singleton;
+import com.ramiidev.injectify.fixtures.scope.SingletonImpl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -17,11 +17,11 @@ public class BeanScopeTest {
     @Test
     @DisplayName("Return same instance for singleton scope")
     void returnSameInstanceForSingleton() {
-        ApplicationContext context = TestContextFactory.create(SingletonServiceImpl.class);
+        ApplicationContext context = TestContextFactory.create(SingletonImpl.class);
 
         try {
-            SingletonService firstInstance = context.getBean(SingletonServiceImpl.class);
-            SingletonService secondInstance = context.getBean(SingletonServiceImpl.class);
+            Singleton firstInstance = context.getBean(SingletonImpl.class);
+            Singleton secondInstance = context.getBean(SingletonImpl.class);
 
             assertSame(firstInstance, secondInstance);
         } finally {
@@ -32,11 +32,11 @@ public class BeanScopeTest {
     @Test
     @DisplayName("Return different instances for prototype scope")
     void returnDifferentInstanceForPrototype() {
-        ApplicationContext context = TestContextFactory.create(PrototypeServiceImpl.class);
+        ApplicationContext context = TestContextFactory.create(PrototypeImpl.class);
 
         try {
-            PrototypeService firstInstance = context.getBean(PrototypeServiceImpl.class);
-            PrototypeService secondInstance = context.getBean(PrototypeServiceImpl.class);
+            Prototype firstInstance = context.getBean(PrototypeImpl.class);
+            Prototype secondInstance = context.getBean(PrototypeImpl.class);
 
             assertNotEquals(firstInstance, secondInstance);
         } finally {

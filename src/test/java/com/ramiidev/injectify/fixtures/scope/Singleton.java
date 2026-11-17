@@ -1,4 +1,4 @@
 package com.ramiidev.injectify.fixtures.scope;
 
-public interface PrototypeService {
+public interface Singleton {
 }

@@ -1,21 +1,21 @@
 package com.ramiidev.injectify.fixtures.injection;
 
-import com.ramiidev.injectify.fixtures.scope.SingletonService;
+import com.ramiidev.injectify.fixtures.scope.Singleton;
 import com.ramiidev.injectify.shared.annotation.Autowired;
 import com.ramiidev.injectify.shared.annotation.stereotype.Component;
 
 @Component
 public class SetterInterfaceConsumer {
 
-    private SingletonService singletonService;
+    private Singleton singleton;
 
     @Autowired
-    public void setSingletonService(final SingletonService singletonService) {
-        this.singletonService = singletonService;
+    public void setSingletonService(final Singleton singleton) {
+        this.singleton = singleton;
     }
 
-    public SingletonService getSingletonService() {
-        return singletonService;
+    public Singleton getSingletonService() {
+        return singleton;
     }
 
 }

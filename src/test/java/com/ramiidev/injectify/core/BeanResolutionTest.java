@@ -2,8 +2,8 @@ package com.ramiidev.injectify.core;
 
 import com.ramiidev.injectify.core.context.ApplicationContext;
 import com.ramiidev.injectify.core.support.TestContextFactory;
-import com.ramiidev.injectify.fixtures.scope.SingletonService;
-import com.ramiidev.injectify.fixtures.scope.SingletonServiceImpl;
+import com.ramiidev.injectify.fixtures.scope.Singleton;
+import com.ramiidev.injectify.fixtures.scope.SingletonImpl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -14,10 +14,10 @@ public class BeanResolutionTest {
     @Test
     @DisplayName("Resolve bean using concrete type")
     void resolvesBeanUsingConcreteType() {
-        ApplicationContext context = TestContextFactory.create(SingletonServiceImpl.class);
+        ApplicationContext context = TestContextFactory.create(SingletonImpl.class);
 
         try {
-            SingletonServiceImpl beanConcreteType = context.getBean(SingletonServiceImpl.class);
+            SingletonImpl beanConcreteType = context.getBean(SingletonImpl.class);
             assertNotNull(beanConcreteType);
         } finally {
             context.destroy();
@@ -27,10 +27,10 @@ public class BeanResolutionTest {
     @Test
     @DisplayName("Resolve bean using interface")
     void resolverBeanUsingInterface() {
-        ApplicationContext context = TestContextFactory.create(SingletonServiceImpl.class);
+        ApplicationContext context = TestContextFactory.create(SingletonImpl.class);
 
         try {
-            SingletonService beanInterface = context.getBean(SingletonService.class);
+            Singleton beanInterface = context.getBean(Singleton.class);
             assertNotNull(beanInterface);
         } finally {
             context.destroy();

@@ -6,5 +6,5 @@ import com.ramiidev.injectify.shared.annotation.stereotype.Component;
 
 @Component
 @Scope(BeanScope.PROTOTYPE)
-public class PrototypeServiceImpl implements PrototypeService{
+public class PrototypeImpl implements Prototype {
 }

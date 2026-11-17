@@ -6,7 +6,7 @@ import com.ramiidev.injectify.fixtures.injection.ConstructorInterfaceConsumer;
 import com.ramiidev.injectify.fixtures.injection.SetterConcreteConsumer;
 import com.ramiidev.injectify.fixtures.injection.SetterInterfaceConsumer;
 import com.ramiidev.injectify.fixtures.injection.ConstructorConcreteConsumer;
-import com.ramiidev.injectify.fixtures.scope.SingletonServiceImpl;
+import com.ramiidev.injectify.fixtures.scope.SingletonImpl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +19,7 @@ public class BeanInjectionTest {
     void injectDependencyThroughConstructorUsingConcreteType() {
         ApplicationContext context =
                 TestContextFactory.create(
-                        SingletonServiceImpl.class,
+                        SingletonImpl.class,
                         ConstructorConcreteConsumer.class
                 );
         try {
@@ -37,7 +37,7 @@ public class BeanInjectionTest {
     void injectDependencyThroughConstructorUsingInterface() {
         ApplicationContext context =
                 TestContextFactory.create(
-                        SingletonServiceImpl.class,
+                        SingletonImpl.class,
                         ConstructorInterfaceConsumer.class
                 );
         try {
@@ -55,7 +55,7 @@ public class BeanInjectionTest {
     void injectDependencyThroughSetterUsingConcreteType() {
         ApplicationContext context =
                 TestContextFactory.create(
-                        SingletonServiceImpl.class,
+                        SingletonImpl.class,
                         SetterConcreteConsumer.class
                 );
 
@@ -75,7 +75,7 @@ public class BeanInjectionTest {
     void injectDependencyThroughSetterUsingInterface() {
         ApplicationContext context =
                 TestContextFactory.create(
-                        SingletonServiceImpl.class,
+                        SingletonImpl.class,
                         SetterInterfaceConsumer.class
                 );
 
