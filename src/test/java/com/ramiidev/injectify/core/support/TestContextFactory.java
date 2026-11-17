@@ -14,11 +14,16 @@ public class TestContextFactory {
     }
 
     public static ApplicationContext create(Class<?>... componentsClasses) {
+        return create(Map.of(), componentsClasses);
+    }
+
+    public static ApplicationContext create(Map<String, String> properties,
+                                            Class<?>... componentsClasses) {
         ApplicationConversionService conversionService =
                 ApplicationConversionService.getSharedInstance();
 
         Environment environment = new DefaultEnvironment(
-                new MapPropertySource(Map.of()),
+                new MapPropertySource(properties),
                 conversionService
         );
 
